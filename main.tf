@@ -60,7 +60,7 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_security_group" "ec2_ssh" {
+resource "aws_security_group" "ec2_nginx" {
   vpc_id = aws_vpc.main.id
 
   ingress {
@@ -78,15 +78,15 @@ resource "aws_security_group" "ec2_ssh" {
   }
 
   tags = {
-    Name = "ec2-ssh"
+    Name = "ec2-nginx"
   }
 }
 
 resource "aws_instance" "minimal" {
-  ami                    = "ami-0662f4965dfc70aca"
+  ami                    = "ami-0662f4965dfc70aca" # Ubuntu Server 24.04 LTS (64-bit (x86))
   instance_type          = "t3.nano"
   subnet_id              = aws_subnet.public.id
-  vpc_security_group_ids = [aws_security_group.ec2_ssh.id]
+  vpc_security_group_ids = [aws_security_group.ec2_nginx.id]
 
   root_block_device {
     volume_type = "gp3"
