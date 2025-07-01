@@ -109,3 +109,8 @@ resource "aws_instance" "minimal" {
     Name = "minimal-ec2"
   }
 }
+
+output "nginx_url" {
+  description = "URL to access nginx on the EC2 instance"
+  value       = format("http://%s/", aws_instance.minimal.public_ip)
+}
