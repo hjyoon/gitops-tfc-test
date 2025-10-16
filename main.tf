@@ -1,13 +1,21 @@
 terraform {
+  required_version = ">= 1.6"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+    tls = {
+      source  = "hashicorp/tls",
       version = "~> 4.0"
     }
+    local = {
+      source  = "hashicorp/local",
+      version = "~> 2.0"
+    }
   }
-  required_version = ">= 1.0"
 }
-
 
 provider "aws" {
   region = "ap-northeast-2"
@@ -64,6 +72,13 @@ resource "aws_security_group" "ec2_nginx" {
   vpc_id = aws_vpc.main.id
 
   ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -82,11 +97,40 @@ resource "aws_security_group" "ec2_nginx" {
   }
 }
 
+resource "tls_private_key" "ssh" {
+  algorithm = "ED25519"
+}
+
+resource "aws_key_pair" "minimal" {
+  key_name   = "minimal-ssh"
+  public_key = tls_private_key.ssh.public_key_openssh
+}
+
+resource "local_sensitive_file" "private_key" {
+  filename = "${path.module}/minimal-ssh"
+  content  = tls_private_key.ssh.private_key_openssh
+}
+
+resource "local_file" "public_key" {
+  filename = "${path.module}/minimal-ssh.pub"
+  content  = tls_private_key.ssh.public_key_openssh
+}
+
+resource "null_resource" "chmod_private" {
+  triggers = { fp = tls_private_key.ssh.public_key_fingerprint_md5 }
+  provisioner "local-exec" {
+    command = "chmod 400 ${path.module}/minimal-ssh"
+  }
+  depends_on = [local_sensitive_file.private_key]
+}
+
 resource "aws_instance" "minimal" {
   ami                    = "ami-0662f4965dfc70aca" # Ubuntu Server 24.04 LTS (64-bit (x86))
   instance_type          = "t3.nano"
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.ec2_nginx.id]
+
+  key_name = aws_key_pair.minimal.key_name
 
   root_block_device {
     volume_type = "gp3"
@@ -108,6 +152,13 @@ resource "aws_instance" "minimal" {
   tags = {
     Name = "minimal-ec2"
   }
+
+  depends_on = [null_resource.chmod_private]
+}
+
+output "ssh_command" {
+  value     = "ssh -i ${path.module}/minimal-ssh ubuntu@${aws_instance.minimal.public_ip}"
+  sensitive = false
 }
 
 output "nginx_url" {
