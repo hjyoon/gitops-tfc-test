@@ -1,40 +1,46 @@
-# Minimal AWS VPC + EC2 + Nginx
+# Minimal AWS VPC + Bastion + Private EC2 + ALB (Nginx)
 
-This repository contains Terraform configuration for provisioning a minimal AWS
-environment with a public EC2 instance running Nginx.
+Provision **VPC + public/private subnets + 1 NAT + Bastion + 2 private EC2 + ALB(HTTP)** with Terraform.
+All values are fixed via `locals`. After apply, access Nginx through the ALB.
 
-## Features
+## Create (Local)
 
-- Creates a VPC, public subnet, and internet gateway  
-- Configures routing for external access  
-- Sets up a security group for HTTP and SSH  
-- Generates an SSH key pair automatically  
-- Launches an Ubuntu EC2 instance with Nginx installed
+```bash
+terraform init
+terraform plan
+terraform apply
+```
 
-## Quick Start (Local)
+## Check
 
-1. Ensure you have [Terraform ≥ 1.6](https://developer.hashicorp.com/terraform/downloads).  
-2. Configure your AWS credentials (via environment variables or AWS CLI).  
-3. Initialize the project:
-   `terraform init`
-4. Review the planned actions:
-   `terraform plan`
-5. Apply the configuration:
-   `terraform apply`
-6. After the apply completes:
-   - Check the `nginx_url` output for the public endpoint.
-   - Use the `ssh_command` output to connect to your instance.
+```bash
+# ALB DNS (open in browser to see Nginx default page)
+terraform output alb_dns_name
 
-## Usage (Terraform Cloud VCS Workflow)
+# Bastion SSH command
+terraform output -raw ssh_bastion
 
-1. Connect this repository to a Terraform Cloud workspace.  
-2. Configure AWS credentials in workspace variables.  
-3. Push your changes — Terraform Cloud will automatically plan and apply.  
-4. Check the `nginx_url` output for the public Nginx endpoint.  
-5. Use the `ssh_command` output to connect to the instance via SSH.
+# Proxy SSH examples to private EC2s (map)
+terraform output ssh_web_proxycommand_examples
+```
 
-## Notes
+## Components
 
-- The SSH port (22) is open to all by default. Restrict access to trusted IPs
-  for production environments.
-- Terraform version 1.6 or later is required.
+- VPC (CIDR 10.10.0.0/16)
+- AZs: ap-northeast-2a, ap-northeast-2c
+- 2 public + 2 private subnets
+- 1 IGW, 1 NAT GW (in 2a)
+- Bastion (public subnet, SSH entry)
+- 2 Web EC2 (private, t4g.micro, Nginx via user_data)
+- ALB (HTTP:80) → target: EC2 instances
+
+## Security / Cost Notes
+
+- bastion_sg opens 22/tcp to 0.0.0.0/0 for demo → restrict to trusted IPs in production.
+- NAT/ALB/EIP incur costs → destroy after testing.
+
+## Destroy
+
+```bash
+terraform destroy
+```
